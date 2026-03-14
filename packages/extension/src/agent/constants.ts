@@ -1,30 +1,39 @@
 import type { LLMConfig } from '@page-agent/llms'
+import {
+	AZURE_OPENAI_API_VERSION,
+	AZURE_OPENAI_DEPLOYMENT,
+	AZURE_OPENAI_ENDPOINT,
+	AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID,
+	AZURE_OPENAI_SCOPE,
+} from '@page-agent/llms'
 
-// Demo LLM for testing
-export const DEMO_MODEL = 'qwen3.5-plus'
-export const DEMO_BASE_URL = 'https://page-ag-testing-ohftxirgbn.cn-shanghai.fcapp.run'
-export const DEMO_API_KEY = 'NA'
-
-export const DEMO_CONFIG: LLMConfig = {
-	apiKey: DEMO_API_KEY,
-	baseURL: DEMO_BASE_URL,
-	model: DEMO_MODEL,
+// Re-export so extension code can import from one place
+export {
+	AZURE_OPENAI_API_VERSION,
+	AZURE_OPENAI_DEPLOYMENT,
+	AZURE_OPENAI_ENDPOINT,
+	AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID,
+	AZURE_OPENAI_SCOPE,
 }
 
-/** Legacy testing endpoints that should be auto-migrated to DEMO_BASE_URL */
+// Default config — no baseURL/apiKey/model means AzureOpenAIClient is used automatically
+export const AZURE_CONFIG: LLMConfig = {}
+
+/** Legacy testing endpoints that should be auto-migrated to Azure */
 export const LEGACY_TESTING_ENDPOINTS = [
+	// 'https://page-ag-testing-ohftxirgbn.cn-shanghai.fcapp.run',
 	'https://hwcxiuzfylggtcktqgij.supabase.co/functions/v1/llm-testing-proxy',
 ]
 
 export function isTestingEndpoint(url: string): boolean {
 	const normalized = url.replace(/\/+$/, '')
-	return normalized === DEMO_BASE_URL || LEGACY_TESTING_ENDPOINTS.some((ep) => normalized === ep)
+	return LEGACY_TESTING_ENDPOINTS.some((ep) => normalized === ep)
 }
 
 export function migrateLegacyEndpoint(config: LLMConfig): LLMConfig {
-	const normalized = config.baseURL.replace(/\/+$/, '')
+	const normalized = (config.baseURL ?? '').replace(/\/+$/, '')
 	if (LEGACY_TESTING_ENDPOINTS.some((ep) => normalized === ep)) {
-		return { ...DEMO_CONFIG }
+		return { ...AZURE_CONFIG }
 	}
 	return config
 }

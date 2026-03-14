@@ -5,6 +5,13 @@ import type { InvokeOptions, InvokeResult, LLMClient, LLMConfig, Message, Tool }
 
 export { AzureOpenAIClient, OpenAIClient }
 export type { AzureOpenAIConfig } from './OpenAIClient'
+export {
+	AZURE_OPENAI_API_VERSION,
+	AZURE_OPENAI_DEPLOYMENT,
+	AZURE_OPENAI_ENDPOINT,
+	AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID,
+	AZURE_OPENAI_SCOPE,
+} from './azure-openai-models'
 export { InvokeError, InvokeErrorType }
 export type { InvokeOptions, InvokeResult, LLMClient, LLMConfig, Message, Tool }
 

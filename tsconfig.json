@@ -10,5 +10,5 @@
         { "path": "./packages/website" }
     ],
     "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
-    "exclude": ["node_modules", "dist", "packages/*/dist"]
+    "exclude": ["node_modules", "dist", "packages/*/dist","./packages/extension/page-agent-ext-1.5.7-chrome"]
 }
