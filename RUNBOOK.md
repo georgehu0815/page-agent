@@ -257,36 +257,42 @@ Azure OpenAI returns LLM response
 
 ### 8.2 Azure AD app registration (one-time setup)
 
-The extension uses OAuth2 implicit grant flow (`response_type=token`). An Azure AD app
-registration must be configured to allow this.
+The extension uses **OAuth2 Authorization Code + PKCE** flow — this is the modern,
+recommended approach for browser extensions and requires **no special flags** in Azure AD.
+It does NOT require implicit grant to be enabled.
 
-#### Step 1 — Find or create the app registration
+> If you see `AADSTS700051: response_type 'token' is not enabled`, you are using the old
+> implicit flow. This setup guide uses PKCE which avoids that error entirely.
 
-1. Go to [portal.azure.com](https://portal.azure.com) → **Azure Active Directory** → **App registrations**
-2. Find the registration for client ID `c9427d44-98e2-406a-9527-f7fa7059f984`
-   (this is the managed identity client ID referenced in `azure-openai-models.ts`)
-   OR create a new registration:
+#### Step 1 — Create a new app registration
+
+1. Go to [portal.azure.com](https://portal.azure.com) → **Azure Active Directory** → **App registrations** → **New registration**
+2. Fill in:
    - **Name:** `page-agent-edge-ext`
    - **Supported account types:** Accounts in this organizational directory only
-   - **Redirect URI:** leave blank for now (added in Step 3)
+   - **Redirect URI:** leave blank — added in Step 3
+3. Click **Register**
+4. Copy the **Application (client) ID** — paste it into `AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID` in `packages/llms/src/azure-openai-models.ts`
 
-#### Step 2 — Enable implicit grant
+#### Step 2 — Add the SPA platform (enables PKCE)
 
-In the app registration → **Authentication** tab:
+In the new app registration → **Authentication** tab:
 
-1. Under **Implicit grant and hybrid flows**, check **Access tokens**
-2. Click **Save**
+1. Click **Add a platform** → choose **Single-page application (SPA)**
+2. Leave the redirect URI blank for now
+3. Click **Configure**
 
-> Without this, the OAuth2 flow returns an authorization code, not a token, and the extension
-> cannot extract the access token from the redirect URL.
+> **Why SPA and not Web?** The SPA platform type enables PKCE authorization code flow
+> without a client secret. The Web platform requires a secret (not suitable for extensions).
+> Do NOT enable "Implicit grant" — the PKCE flow does not need it.
 
 #### Step 3 — Add the extension redirect URI
 
-The redirect URI is unique per extension ID. You need to add it to the app registration.
+The redirect URI is unique per extension ID.
 
 **Get the redirect URI:**
 
-After loading the extension in Edge at least once (see §8.4), open the side panel DevTools:
+After loading the extension in Edge at least once (see §8.4):
 
 1. Go to `edge://extensions/`
 2. Click **Inspect views: sidepanel** on the extension card
@@ -294,19 +300,19 @@ After loading the extension in Edge at least once (see §8.4), open the side pan
    ```javascript
    chrome.identity.getRedirectURL()
    ```
-4. Copy the returned URL — it looks like:
+4. Copy the result — it looks like:
    ```
    https://mgffbdlbkhpbeijgjfgmekanmlaldmah.chromiumapp.org/
    ```
 
-**Add it to the app registration:**
+**Add it to the SPA platform:**
 
-1. Azure portal → App registration → **Authentication** → **Add a platform** → **Web**
-2. Paste the redirect URI exactly
+1. Azure portal → App registration → **Authentication** → under **Single-page application**, click **Add URI**
+2. Paste the exact URL
 3. Click **Save**
 
-> The extension ID is stable for a given installation. The production (zip) build and the
-> dev build have different IDs — add both URIs if you use both.
+> The dev build (`.output/edge-mv3-dev/`) and production build (`.output/edge-mv3/`) have
+> different extension IDs. Add both redirect URIs if you use both.
 
 #### Step 4 — Grant API permissions
 
@@ -522,10 +528,12 @@ This zip contains the production-minified bundle and is ready to sideload or sub
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `AADSTS700051: response_type 'token' is not enabled` | Old implicit flow code still running | Reload the extension after the latest build — PKCE uses `response_type=code` |
 | Login popup never appears | `identity` permission missing | Check `manifest.json` contains `"identity"` in permissions |
-| Login popup appears then fails | Redirect URI not whitelisted | Run `chrome.identity.getRedirectURL()` in DevTools console, add to Azure AD app |
-| "No access_token in OAuth2 response" | Implicit grant not enabled | Enable **Access tokens** in Azure AD → Authentication → Implicit grant |
-| "Azure OAuth2 flow failed" | User cancelled or AAD unreachable | Sign in again; check network / AAD tenant availability |
+| Login popup appears then fails | Redirect URI not whitelisted | Run `chrome.identity.getRedirectURL()` in DevTools console, add URI to the SPA platform in Azure AD |
+| "No authorization code in redirect response" | Platform type wrong | Ensure the Azure AD app uses **SPA** platform, not Web or Mobile |
+| "Azure AD token exchange failed (400)" | PKCE verifier mismatch or redirect URI wrong | Reload and retry; verify redirect URI exactly matches what's registered |
+| "Azure AD login failed" | User cancelled or AAD unreachable | Sign in again; check network / AAD tenant availability |
 | "Authentication failed" (LLM error) | Token sent but Azure rejected it | Check API permissions, grant admin consent, verify resource RBAC |
 | "Network request failed" | Azure OpenAI endpoint wrong or unreachable | Verify `AZURE_OPENAI_ENDPOINT` in `azure-openai-models.ts` |
 | Side panel blank / white | Stale build after source change | Reload extension in `edge://extensions/` or restart `dev:edge` |
