@@ -97,15 +97,68 @@ import { PageAgent } from 'page-agent'`}
 					<h3 className="text-lg font-semibold mb-2 text-purple-900 dark:text-purple-300">
 						{isZh ? '2. 初始化配置' : '2. Initialize Configuration'}
 					</h3>
-					<CodeEditor
-						code={`const agent = new PageAgent({
-  model: 'qwen3.5-plus',
-  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  apiKey: 'YOUR_API_KEY',
+
+					{/* Azure OpenAI — default */}
+					<div className="mb-4">
+						<p className="text-sm font-semibold mb-1 text-purple-800 dark:text-purple-300">
+							{isZh
+								? '✅ 推荐：Azure OpenAI + 托管身份（无需 API Key）'
+								: '✅ Recommended: Azure OpenAI with Managed Identity (no API key needed)'}
+						</p>
+						<div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded mb-2 text-sm text-blue-800 dark:text-blue-200">
+							{isZh ? (
+								<>
+									本地开发前请先运行{' '}
+									<code className="font-mono bg-blue-100 dark:bg-blue-800 px-1 rounded">
+										az login
+									</code>{' '}
+									完成 Azure CLI 认证。生产环境自动使用托管身份，无需额外配置。
+								</>
+							) : (
+								<>
+									For local dev, run{' '}
+									<code className="font-mono bg-blue-100 dark:bg-blue-800 px-1 rounded">
+										az login
+									</code>{' '}
+									once to authenticate. In production, Managed Identity is used automatically.
+								</>
+							)}
+						</div>
+						<CodeEditor
+							code={`// ${isZh ? '无需 baseURL / apiKey / model — 自动使用 Azure OpenAI 托管身份认证' : 'No baseURL / apiKey / model needed — Azure Managed Identity is used automatically'}
+const agent = new PageAgent({
   language: '${isZh ? 'zh-CN' : 'en-US'}'
 })`}
-						language="javascript"
-					/>
+							language="javascript"
+						/>
+					</div>
+
+					{/* Divider */}
+					<div className="flex items-center gap-2 my-3">
+						<div className="flex-1 h-px bg-purple-200 dark:bg-purple-700" />
+						<span className="text-xs text-purple-500 dark:text-purple-400">
+							{isZh ? '或使用其他 LLM 提供商' : 'or use another LLM provider'}
+						</span>
+						<div className="flex-1 h-px bg-purple-200 dark:bg-purple-700" />
+					</div>
+
+					{/* OpenAI-compatible fallback */}
+					<div>
+						<p className="text-sm font-semibold mb-1 text-purple-800 dark:text-purple-300">
+							{isZh
+								? 'OpenAI 兼容接口（提供 baseURL + apiKey + model 即可切换）'
+								: 'OpenAI-compatible endpoint (provide baseURL + apiKey + model to switch)'}
+						</p>
+						<CodeEditor
+							code={`const agent = new PageAgent({
+  baseURL: 'https://api.openai.com/v1',
+  apiKey: 'YOUR_API_KEY',
+  model: 'gpt-4o',
+  language: '${isZh ? 'zh-CN' : 'en-US'}'
+})`}
+							language="javascript"
+						/>
+					</div>
 				</div>
 
 				<div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">

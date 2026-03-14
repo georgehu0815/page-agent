@@ -1,27 +1,43 @@
-import { OpenAIClient } from './OpenAIClient'
+import { AzureOpenAIClient, OpenAIClient } from './OpenAIClient'
 import { DEFAULT_TEMPERATURE, LLM_MAX_RETRIES } from './constants'
 import { InvokeError, InvokeErrorType } from './errors'
 import type { InvokeOptions, InvokeResult, LLMClient, LLMConfig, Message, Tool } from './types'
 
+export { AzureOpenAIClient, OpenAIClient }
+export type { AzureOpenAIConfig } from './OpenAIClient'
 export { InvokeError, InvokeErrorType }
 export type { InvokeOptions, InvokeResult, LLMClient, LLMConfig, Message, Tool }
 
+/**
+ * Returns true when the config has enough fields to use an OpenAI-compatible client.
+ * When baseURL is absent the LLM class falls back to AzureOpenAIClient.
+ */
+function isOpenAIConfig(
+	config: LLMConfig
+): config is LLMConfig & { baseURL: string; apiKey: string; model: string } {
+	return Boolean(config.baseURL && config.apiKey && config.model)
+}
+
 export function parseLLMConfig(config: LLMConfig): Required<LLMConfig> {
-	// Runtime validation as defensive programming (types already guarantee these)
-	if (!config.baseURL || !config.apiKey || !config.model) {
-		throw new Error(
-			'[PageAgent] LLM configuration required. Please provide: baseURL, apiKey, model. ' +
-				'See: https://alibaba.github.io/page-agent/docs/features/models'
-		)
+	if (isOpenAIConfig(config)) {
+		return {
+			baseURL: config.baseURL,
+			apiKey: config.apiKey,
+			model: config.model,
+			temperature: config.temperature ?? DEFAULT_TEMPERATURE,
+			maxRetries: config.maxRetries ?? LLM_MAX_RETRIES,
+			customFetch: (config.customFetch ?? fetch).bind(globalThis),
+		}
 	}
 
+	// Azure mode — baseURL / apiKey / model come from azure-openai-models.ts
 	return {
-		baseURL: config.baseURL,
-		apiKey: config.apiKey,
-		model: config.model,
+		baseURL: '',
+		apiKey: '',
+		model: '',
 		temperature: config.temperature ?? DEFAULT_TEMPERATURE,
 		maxRetries: config.maxRetries ?? LLM_MAX_RETRIES,
-		customFetch: (config.customFetch ?? fetch).bind(globalThis), // fetch will be illegal unless bound
+		customFetch: (config.customFetch ?? fetch).bind(globalThis),
 	}
 }
 
@@ -29,12 +45,19 @@ export class LLM extends EventTarget {
 	config: Required<LLMConfig>
 	client: LLMClient
 
-	constructor(config: LLMConfig) {
+	constructor(config: LLMConfig = {}) {
 		super()
 		this.config = parseLLMConfig(config)
 
-		// Default to OpenAI client
-		this.client = new OpenAIClient(this.config)
+		if (isOpenAIConfig(config)) {
+			this.client = new OpenAIClient(this.config)
+		} else {
+			// Default: Azure OpenAI with Managed Identity
+			this.client = new AzureOpenAIClient({
+				temperature: this.config.temperature,
+				maxRetries: this.config.maxRetries,
+			})
+		}
 	}
 
 	/**

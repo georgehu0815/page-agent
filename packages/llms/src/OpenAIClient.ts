@@ -1,8 +1,18 @@
 /**
  * OpenAI Client implementation
  */
+// ─── Azure OpenAI ─────────────────────────────────────────────────────────────
+import { AzureCliCredential, ManagedIdentityCredential } from '@azure/identity'
 import * as z from 'zod/v4'
 
+import {
+	AZURE_OPENAI_API_VERSION,
+	AZURE_OPENAI_DEPLOYMENT,
+	AZURE_OPENAI_ENDPOINT,
+	AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID,
+	AZURE_OPENAI_SCOPE,
+} from './azure-openai-models'
+import { DEFAULT_TEMPERATURE, LLM_MAX_RETRIES } from './constants'
 import { InvokeError, InvokeErrorType } from './errors'
 import type { InvokeOptions, InvokeResult, LLMClient, LLMConfig, Message, Tool } from './types'
 import { modelPatch, zodToOpenAITool } from './utils'
@@ -12,11 +22,30 @@ import { modelPatch, zodToOpenAITool } from './utils'
  */
 export class OpenAIClient implements LLMClient {
 	config: Required<LLMConfig>
-	private fetch: typeof globalThis.fetch
+	protected fetch: typeof globalThis.fetch
 
 	constructor(config: Required<LLMConfig>) {
 		this.config = config
 		this.fetch = config.customFetch
+	}
+
+	/**
+	 * Perform the HTTP request to the chat completions endpoint.
+	 * Override in subclasses to change the URL, auth headers, or transport (e.g. Azure).
+	 */
+	protected async fetchCompletion(
+		requestBody: Record<string, unknown>,
+		abortSignal?: AbortSignal
+	): Promise<Response> {
+		return await this.fetch(`${this.config.baseURL}/chat/completions`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${this.config.apiKey}`,
+			},
+			body: JSON.stringify(requestBody),
+			signal: abortSignal,
+		})
 	}
 
 	async invoke(
@@ -46,15 +75,7 @@ export class OpenAIClient implements LLMClient {
 		// 2. Call API
 		let response: Response
 		try {
-			response = await this.fetch(`${this.config.baseURL}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${this.config.apiKey}`,
-				},
-				body: JSON.stringify(requestBody),
-				signal: abortSignal,
-			})
+			response = await this.fetchCompletion(requestBody, abortSignal)
 		} catch (error: unknown) {
 			const isAbortError = (error as any)?.name === 'AbortError'
 			const errorMessage = isAbortError ? 'Network request aborted' : 'Network request failed'
@@ -224,5 +245,78 @@ export class OpenAIClient implements LLMClient {
 			rawResponse: data,
 			rawRequest: requestBody,
 		}
+	}
+}
+
+export interface AzureOpenAIConfig {
+	/** Defaults to DEFAULT_TEMPERATURE (0.7) */
+	temperature?: number
+	/** Defaults to LLM_MAX_RETRIES (2) */
+	maxRetries?: number
+}
+
+/**
+ * Azure OpenAI client that authenticates via Managed Identity (production)
+ * or Azure CLI (development) — no API key required.
+ *
+ * Uses the deployment and endpoint from azure-openai-models.ts.
+ * Extends OpenAIClient and overrides only the HTTP transport so all
+ * response parsing, retry logic, and tool execution remain identical.
+ */
+export class AzureOpenAIClient extends OpenAIClient {
+	private credential: AzureCliCredential | ManagedIdentityCredential
+	private cachedToken: string | null = null
+	private tokenExpiry = 0
+
+	constructor(config?: AzureOpenAIConfig) {
+		super({
+			// baseURL and apiKey are not used — URL and auth overridden in fetchCompletion
+			baseURL: '',
+			apiKey: '',
+			model: AZURE_OPENAI_DEPLOYMENT,
+			temperature: config?.temperature ?? DEFAULT_TEMPERATURE,
+			maxRetries: config?.maxRetries ?? LLM_MAX_RETRIES,
+			customFetch: fetch.bind(globalThis),
+		})
+
+		if (process.env.NODE_ENV === 'production') {
+			this.credential = new ManagedIdentityCredential(AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID)
+			console.log('[AzureOpenAIClient] Using ManagedIdentityCredential')
+		} else {
+			this.credential = new AzureCliCredential()
+			console.log('[AzureOpenAIClient] Using AzureCliCredential')
+		}
+	}
+
+	private async getToken(): Promise<string> {
+		if (!this.cachedToken || Date.now() >= this.tokenExpiry) {
+			const tokenResponse = await this.credential.getToken(AZURE_OPENAI_SCOPE)
+			this.cachedToken = tokenResponse.token
+			// Refresh 5 minutes before actual expiry to avoid mid-request expiry
+			this.tokenExpiry = tokenResponse.expiresOnTimestamp - 5 * 60 * 1000
+			console.log('[AzureOpenAIClient] Token refreshed')
+		}
+		return this.cachedToken
+	}
+
+	protected override async fetchCompletion(
+		requestBody: Record<string, unknown>,
+		abortSignal?: AbortSignal
+	): Promise<Response> {
+		const token = await this.getToken()
+		const url =
+			`${AZURE_OPENAI_ENDPOINT}openai/deployments/${AZURE_OPENAI_DEPLOYMENT}` +
+			`/chat/completions?api-version=${AZURE_OPENAI_API_VERSION}`
+
+		return await this.fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`,
+				'api-key': token, // Azure OpenAI accepts both headers
+			},
+			body: JSON.stringify(requestBody),
+			signal: abortSignal,
+		})
 	}
 }

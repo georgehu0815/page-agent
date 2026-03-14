@@ -10,6 +10,58 @@
 
 ---
 
+## LLM Configuration — Azure OpenAI (default)
+
+The default LLM backend is **Azure OpenAI with Managed Identity** — no API key required.
+Authentication is handled automatically:
+
+| Environment | Credential used | How to set up |
+|---|---|---|
+| **Local / dev** | `AzureCliCredential` | Run `az login` once |
+| **Production** | `ManagedIdentityCredential` | Assign the managed identity to the Azure resource |
+
+The endpoint, deployment name, API version, and managed identity client ID are configured in
+`packages/llms/src/azure-openai-models.ts`:
+
+```
+AZURE_OPENAI_ENDPOINT   = https://datacopilothub8882317788.cognitiveservices.azure.com/
+AZURE_OPENAI_DEPLOYMENT = gpt-5.2-chat
+AZURE_OPENAI_API_VERSION = 2024-08-01-preview
+AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID = c9427d44-98e2-406a-9527-f7fa7059f984
+```
+
+### Dev setup (one-time)
+
+```bash
+# Install the Azure CLI if not already installed
+brew install azure-cli        # macOS
+# or: https://learn.microsoft.com/en-us/cli/azure/install-azure-cli
+
+# Log in — credentials are cached locally
+az login
+```
+
+After `az login`, `AzureCliCredential` will resolve tokens automatically.
+No `.env` file or API key is needed.
+
+### Using a different LLM (optional override)
+
+To use any OpenAI-compatible endpoint instead, pass all three fields when constructing `PageAgent`:
+
+```typescript
+import { PageAgent } from 'page-agent'
+
+const agent = new PageAgent({
+    baseURL: 'https://api.openai.com/v1',
+    apiKey: 'sk-...',
+    model: 'gpt-4o',
+})
+```
+
+When `baseURL` is present, the client falls back to the standard `OpenAIClient` and Azure is bypassed.
+
+---
+
 ## 1. Install dependencies
 
 Run once after cloning, and again after pulling changes that modify `package.json`:
@@ -86,18 +138,11 @@ served on a separate port alongside the website.
 npm run dev:demo --workspace=page-agent
 ```
 
-        "start": "npm run dev --workspace=@page-agent/website",
-        "dev:ext": "npm run dev -w @page-agent/ext",
-        "dev:demo": "npm run dev:demo --workspace=page-agent",
-        "build": "npm run build:libs && npm run build:website",
-        "build:libs": "npm run build --workspaces --if-present",
-        "build:website": "npm run build:website --workspace=@page-agent/website",
-        "build:ext": "npm run build:libs && npm run zip -w @page-agent/ext",
-
 - Watches `packages/page-agent/src/` and rebuilds the IIFE bundle on change
 - Serves `packages/page-agent/dist/iife/` on `http://localhost:5174/`
 
-**Optional — configure your own LLM** by creating a `.env` file in the repo root:
+The IIFE demo always uses the built-in demo API endpoint by default.
+Override it with a `.env` file in the repo root:
 
 ```bash
 # .env  (repo root — not committed)
@@ -106,11 +151,24 @@ LLM_API_KEY=sk-...
 LLM_MODEL_NAME=gpt-4o
 ```
 
-If `.env` is absent the demo falls back to the built-in free testing API endpoint.
+> Note: the IIFE demo does not use Managed Identity. It always requires
+> `baseURL`/`apiKey`/`model` (from `.env` or the built-in demo endpoint).
 
 ---
 
-## 5. Build everything (libs + website)
+## 5. Run the tests
+
+```bash
+npm test --workspace=@page-agent/llms
+```
+
+Runs the Vitest suite for the `@page-agent/llms` package, which covers
+`AzureOpenAIClient` (credential selection, token caching, request format,
+response parsing, error handling).
+
+---
+
+## 6. Build everything (libs + website)
 
 Produces production-optimised output for all packages:
 
@@ -131,7 +189,7 @@ Serves the production build locally at `http://localhost:4173/page-agent/`.
 
 ---
 
-## 6. Build the Chrome extension
+## 7. Build the Chrome extension
 
 ```bash
 npm run build:ext
@@ -152,7 +210,7 @@ it reloads automatically on code changes.
 
 ---
 
-## 7. Lint
+## 8. Lint
 
 ```bash
 npm run lint
@@ -162,7 +220,7 @@ Runs ESLint with TypeScript strict rules across all workspaces.
 
 ---
 
-## 8. How to stop any running server
+## 9. How to stop any running server
 
 | Situation | How to stop |
 |---|---|
@@ -172,7 +230,7 @@ Runs ESLint with TypeScript strict rules across all workspaces.
 
 ---
 
-## 9. Clean build artefacts
+## 10. Clean build artefacts
 
 Remove all `dist/` folders across every package and start fresh:
 
@@ -188,14 +246,18 @@ After cleaning, run `npm run build:libs` before starting any dev server.
 
 ```bash
 # First-time or after pulling
+az login                                          # Authenticate with Azure CLI (dev only)
 npm install
 npm run build:libs
 
-# Day-to-day dev (website)
-npm start                        # http://localhost:5173/page-agent/
+# Run tests
+npm test --workspace=@page-agent/llms
+
+# Day-to-day dev (website) — uses Azure OpenAI by default
+npm start                                         # http://localhost:5173/page-agent/
 
 # Day-to-day dev (demo IIFE script)
-npm run dev:demo --workspace=page-agent   # http://localhost:5174/
+npm run dev:demo --workspace=page-agent           # http://localhost:5174/
 
 # Extension dev
 npm run dev:ext

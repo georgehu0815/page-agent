@@ -85,12 +85,21 @@ export interface InvokeResult<TResult = unknown> {
 }
 
 /**
- * LLM configuration
+ * LLM configuration.
+ *
+ * For Azure OpenAI with Managed Identity, omit `baseURL` / `apiKey` / `model` —
+ * they are sourced from `azure-openai-models.ts` automatically.
+ * The LLM class will select AzureOpenAIClient when `baseURL` is not provided.
+ *
+ * For any OpenAI-compatible endpoint, provide all three fields.
  */
 export interface LLMConfig {
-	baseURL: string
-	apiKey: string
-	model: string
+	/** OpenAI-compatible base URL. Omit to use Azure OpenAI with Managed Identity. */
+	baseURL?: string
+	/** API key. Omit when using Azure OpenAI with Managed Identity. */
+	apiKey?: string
+	/** Model name. Omit when using Azure OpenAI (deployment is set in azure-openai-models.ts). */
+	model?: string
 
 	temperature?: number
 	maxRetries?: number
