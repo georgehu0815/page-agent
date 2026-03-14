@@ -192,12 +192,11 @@ Serves the production build locally at `http://localhost:4173/page-agent/`.
 ## 7. Build the Chrome extension
 
 ```bash
-npm run build:ext
+npm run build:ext         # production build → packages/extension/.output/chrome-mv3/
+npm run zip               # build + zip      → packages/extension/.output/page-agent-ext-<version>-chrome.zip
 ```
 
-This runs `build:libs` first, then zips the extension into
-`packages/extension/.output/`.
-Load the unpacked folder in Chrome at `chrome://extensions/` → *Load unpacked*.
+Load the unpacked folder in Chrome at `chrome://extensions/` → *Load unpacked* → select `.output/chrome-mv3/`.
 
 ### Extension dev mode (hot reload)
 
@@ -205,12 +204,145 @@ Load the unpacked folder in Chrome at `chrome://extensions/` → *Load unpacked*
 npm run dev:ext
 ```
 
-Starts WXT in watch mode. Load the `.output/chrome-mv3-dev/` folder in Chrome once;
-it reloads automatically on code changes.
+Starts WXT in watch mode. Load `.output/chrome-mv3-dev/` in Chrome once; it reloads automatically on code changes.
 
 ---
 
-## 8. Lint
+## 8. Build and deploy the Microsoft Edge extension
+
+### Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Microsoft Edge | Version 79+ (Chromium-based, MV3 support) |
+| Azure CLI authenticated | Run `az login` once — the extension uses Azure OpenAI Managed Identity |
+
+---
+
+### 8a. Build
+
+```bash
+# From repo root — builds libraries first, then the Edge extension
+npm run build:libs
+npm run build:edge --workspace=@page-agent/ext
+```
+
+Output lands in `packages/extension/.output/edge-mv3/`.
+
+```
+.output/edge-mv3/
+├─ manifest.json            ← MV3 manifest (browser: "edge")
+├─ background.js            ← service worker
+├─ sidepanel.html           ← side panel UI entry
+├─ chunks/                  ← React UI bundle
+├─ content-scripts/         ← page interaction script
+├─ main-world.js            ← injected into page context
+├─ assets/                  ← CSS + icons
+└─ _locales/                ← i18n (en, zh_CN)
+```
+
+---
+
+### 8b. Load unpacked in Edge (dev / testing)
+
+1. Open Edge and navigate to `edge://extensions/`
+2. Enable **Developer mode** (toggle in the bottom-left corner)
+3. Click **Load unpacked**
+4. Select the folder:
+   ```
+   packages/extension/.output/edge-mv3/
+   ```
+5. The extension appears in the toolbar. Pin it for easy access.
+
+> **Tip:** Every time you rebuild (`npm run build:edge --workspace=@page-agent/ext`), click the
+> refresh icon on the extension card in `edge://extensions/` to pick up the new build.
+
+---
+
+### 8c. Dev mode (hot reload)
+
+```bash
+npm run dev:edge --workspace=@page-agent/ext
+```
+
+WXT launches Edge using the profile stored in `.wxt/edge-data/` and reloads the extension
+automatically on every file save. No need to manually refresh in `edge://extensions/`.
+
+**First launch only:** Edge will open with the extension already installed in the dedicated
+WXT profile. Keep this Edge window open while developing.
+
+---
+
+### 8d. Run the extension tests
+
+```bash
+npm test --workspace=@page-agent/ext
+```
+
+Runs the Vitest suite covering:
+- `AZURE_CONFIG` is empty `{}` (triggers `AzureOpenAIClient` automatically — no API key needed)
+- `isTestingEndpoint()` URL matching and trailing-slash normalisation
+- `migrateLegacyEndpoint()` auto-migration of old demo URLs to the Azure default
+
+---
+
+### 8e. Zip for distribution / store submission
+
+```bash
+npm run zip:edge --workspace=@page-agent/ext
+```
+
+Produces:
+```
+packages/extension/.output/page-agent-ext-<version>-edge.zip
+```
+
+This zip is ready to upload to the **Microsoft Edge Add-ons store**.
+
+---
+
+### 8f. Submit to the Microsoft Edge Add-ons store
+
+1. Sign in at [https://partner.microsoft.com/en-us/dashboard/microsoftedge/overview](https://partner.microsoft.com/en-us/dashboard/microsoftedge/overview)
+2. Click **Create new extension**
+3. Upload `page-agent-ext-<version>-edge.zip`
+4. Fill in the store listing:
+   - **Name:** Edge Page Agent Ext
+   - **Short description:** AI-powered browser automation assistant. Control web pages with natural language.
+   - **Category:** Productivity
+   - **Privacy policy URL:** `https://github.com/alibaba/page-agent/blob/main/docs/terms-and-privacy.md`
+5. Submit for certification (typically 1–3 business days)
+
+---
+
+### 8g. LLM configuration in the extension
+
+The extension defaults to **Azure OpenAI with Managed Identity** — no API key is required.
+
+| Scenario | What happens |
+|---|---|
+| No settings configured | Uses `AzureOpenAIClient` with the endpoint from `azure-openai-models.ts` |
+| User fills in Base URL + API Key + Model in Settings panel | Switches to `OpenAIClient` (any OpenAI-compatible endpoint) |
+| Legacy demo URL detected in saved settings | Auto-migrated to Azure default on next load |
+
+For local dev the extension calls Azure using `AzureCliCredential`.
+Run `az login` before launching the extension in dev mode.
+
+---
+
+### 8h. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Side panel blank / white | Build not refreshed after code change | Reload extension in `edge://extensions/` |
+| "Authentication failed" error in panel | `az login` not run or token expired | Run `az login` and reload |
+| "Network request failed" in panel | Azure endpoint unreachable or wrong managed identity | Check `azure-openai-models.ts` constants and network access |
+| Extension not appearing after "Load unpacked" | Wrong folder selected | Select `.output/edge-mv3/` (not `edge-mv3-dev/`) |
+| `wxt build` fails with TS errors | Stale library dist files | Run `npm run build:libs` first |
+
+---
+
+## 9. Lint
 
 ```bash
 npm run lint
@@ -260,7 +392,15 @@ npm start                                         # http://localhost:5173/page-a
 npm run dev:demo --workspace=page-agent           # http://localhost:5174/
 
 # Extension dev
-npm run dev:ext
+npm run dev:ext                                   # Chrome (hot reload)
+npm run dev:edge --workspace=@page-agent/ext      # Edge (hot reload)
+
+# Extension tests
+npm test --workspace=@page-agent/ext
+
+# Extension production build + zip
+npm run build:edge --workspace=@page-agent/ext    # → .output/edge-mv3/
+npm run zip:edge   --workspace=@page-agent/ext    # → .output/page-agent-ext-<v>-edge.zip
 
 # Full production build
 npm run build
