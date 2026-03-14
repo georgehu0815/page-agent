@@ -12,7 +12,7 @@ import {
 import { useEffect, useState } from 'react'
 import { siGithub } from 'simple-icons'
 
-import { DEMO_API_KEY, DEMO_BASE_URL, DEMO_MODEL, isTestingEndpoint } from '@/agent/constants'
+import { isTestingEndpoint } from '@/agent/constants'
 import type { ExtConfig, LanguagePreference } from '@/agent/useAgent'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,9 +25,9 @@ interface ConfigPanelProps {
 }
 
 export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
-	const [apiKey, setApiKey] = useState(config?.apiKey || DEMO_API_KEY)
-	const [baseURL, setBaseURL] = useState(config?.baseURL || DEMO_BASE_URL)
-	const [model, setModel] = useState(config?.model || DEMO_MODEL)
+	const [apiKey, setApiKey] = useState(config?.apiKey || '')
+	const [baseURL, setBaseURL] = useState(config?.baseURL || '')
+	const [model, setModel] = useState(config?.model || '')
 	const [language, setLanguage] = useState<LanguagePreference>(config?.language)
 	const [maxSteps, setMaxSteps] = useState<number | undefined>(config?.maxSteps)
 	const [systemInstruction, setSystemInstruction] = useState(config?.systemInstruction ?? '')
@@ -42,9 +42,9 @@ export function ConfigPanel({ config, onSave, onClose }: ConfigPanelProps) {
 	const [showApiKey, setShowApiKey] = useState(false)
 
 	useEffect(() => {
-		setApiKey(config?.apiKey || DEMO_API_KEY)
-		setBaseURL(config?.baseURL || DEMO_BASE_URL)
-		setModel(config?.model || DEMO_MODEL)
+		setApiKey(config?.apiKey || '')
+		setBaseURL(config?.baseURL || '')
+		setModel(config?.model || '')
 		setLanguage(config?.language)
 		setMaxSteps(config?.maxSteps)
 		setSystemInstruction(config?.systemInstruction ?? '')

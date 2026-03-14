@@ -3,7 +3,9 @@ import { mkdirSync, readFileSync } from 'node:fs'
 import { defineConfig } from 'wxt'
 
 const chromeProfile = '.wxt/chrome-data'
+const edgeProfile = '.wxt/edge-data'
 mkdirSync(chromeProfile, { recursive: true })
+mkdirSync(edgeProfile, { recursive: true })
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
