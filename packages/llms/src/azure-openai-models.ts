@@ -15,7 +15,7 @@ export const AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID = 'c9427d44-98e2-406a-9527-
  * Create one in portal.azure.com → Azure AD → App registrations → New registration.
  * Then paste its Application (client) ID here.
  */
-export const AZURE_OPENAI_BROWSER_CLIENT_ID = ''
+export const AZURE_OPENAI_BROWSER_CLIENT_ID = '5e10fe82-09d3-4404-88e5-2f8e98ff7b67' //page-agent-edge-ext
 
 // const endpoint = process.env["AZURE_OPENAI_ENDPOINT"] || "https://datacopilothub8882317788.openai.azure.com/";
 // const apiVersion = "2025-01-01-preview";

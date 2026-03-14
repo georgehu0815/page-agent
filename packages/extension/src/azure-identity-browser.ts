@@ -23,7 +23,7 @@ const TOKEN_SAFETY_BUFFER_MS = 5 * 60 * 1000
  * managed identities cannot be used for interactive browser auth.
  * Fill in after creating the app registration (see setup above).
  */
-const BROWSER_CLIENT_ID = ''
+const BROWSER_CLIENT_ID = '5e10fe82-09d3-4404-88e5-2f8e98ff7b67' // page-agent-edge-ext
 
 // Use 'common' for multi-tenant; replace with your AAD tenant ID or domain if needed.
 // e.g. 'contoso.onmicrosoft.com' or a tenant GUID

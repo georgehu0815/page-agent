@@ -255,72 +255,114 @@ Azure OpenAI returns LLM response
 
 ---
 
-### 8.2 Azure AD app registration (one-time setup)
+### 8.2 Azure AD app registration setup
 
-The extension uses **OAuth2 Authorization Code + PKCE** flow — this is the modern,
-recommended approach for browser extensions and requires **no special flags** in Azure AD.
-It does NOT require implicit grant to be enabled.
+The extension uses **OAuth2 Authorization Code + PKCE** — no implicit grant, no client secret.
+The app registration `page-agent-edge-ext` has been created. The steps below complete its configuration.
 
-> If you see `AADSTS700051: response_type 'token' is not enabled`, you are using the old
-> implicit flow. This setup guide uses PKCE which avoids that error entirely.
+**Known values (already set in code):**
 
-#### Step 1 — Create a new app registration
+| Constant | Value | File |
+|---|---|---|
+| `AZURE_OPENAI_BROWSER_CLIENT_ID` | `5e10fe82-09d3-4404-88e5-2f8e98ff7b67` | `azure-openai-models.ts` |
+| `BROWSER_CLIENT_ID` (stub) | `5e10fe82-09d3-4404-88e5-2f8e98ff7b67` | `azure-identity-browser.ts` |
+| `AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID` | `c9427d44-98e2-406a-9527-f7fa7059f984` | `azure-openai-models.ts` (Node.js only) |
+| `AZURE_OPENAI_ENDPOINT` | `https://datacopilothub8882317788.cognitiveservices.azure.com/` | `azure-openai-models.ts` |
+| `AZURE_OPENAI_SCOPE` | `https://cognitiveservices.azure.com/.default` | `azure-openai-models.ts` |
 
-1. Go to [portal.azure.com](https://portal.azure.com) → **Azure Active Directory** → **App registrations** → **New registration**
-2. Fill in:
-   - **Name:** `page-agent-edge-ext`
+> **Important:** `AZURE_OPENAI_BROWSER_CLIENT_ID` and `AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID`
+> are two different things. The managed identity is for Node.js server-side auth only.
+> The browser extension always uses `AZURE_OPENAI_BROWSER_CLIENT_ID`.
+
+---
+
+#### Step 1 — Verify the app registration exists
+
+1. Go to [portal.azure.com](https://portal.azure.com) → **Azure Active Directory** → **App registrations**
+2. Find **page-agent-edge-ext** (client ID `5e10fe82-09d3-4404-88e5-2f8e98ff7b67`)
+3. On the Overview page confirm:
+   - **Application (client) ID:** `5e10fe82-09d3-4404-88e5-2f8e98ff7b67` ✓
    - **Supported account types:** Accounts in this organizational directory only
-   - **Redirect URI:** leave blank — added in Step 3
-3. Click **Register**
-4. Copy the **Application (client) ID** — paste it into `AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID` in `packages/llms/src/azure-openai-models.ts`
 
-#### Step 2 — Add the SPA platform (enables PKCE)
+---
 
-In the new app registration → **Authentication** tab:
+#### Step 2 — Add the SPA platform
 
-1. Click **Add a platform** → choose **Single-page application (SPA)**
-2. Leave the redirect URI blank for now
-3. Click **Configure**
+In the app registration → **Authentication** tab:
 
-> **Why SPA and not Web?** The SPA platform type enables PKCE authorization code flow
-> without a client secret. The Web platform requires a secret (not suitable for extensions).
-> Do NOT enable "Implicit grant" — the PKCE flow does not need it.
+1. Under **Platform configurations**, click **Add a platform**
+2. Choose **Single-page application (SPA)** — NOT Web, NOT Mobile
+3. Leave the redirect URI field blank for now — added in Step 3
+4. Click **Configure**
 
-#### Step 3 — Add the extension redirect URI
+> The SPA platform enables PKCE code flow by default. Do NOT tick any checkbox under
+> "Implicit grant and hybrid flows" — PKCE does not need implicit grant.
 
-The redirect URI is unique per extension ID.
+---
 
-**Get the redirect URI:**
+#### Step 3 — Add the redirect URI
 
-After loading the extension in Edge at least once (see §8.4):
+The redirect URI is unique to each extension installation (dev and production have different IDs).
 
-1. Go to `edge://extensions/`
-2. Click **Inspect views: sidepanel** on the extension card
+**Find your redirect URI:**
+
+1. Load the extension in Edge (§8.4 below)
+2. Go to `edge://extensions/` → find **Edge Page Agent Ext** → click **Inspect views: sidepanel**
 3. In the DevTools console, run:
    ```javascript
    chrome.identity.getRedirectURL()
+   // → "https://<extension-id>.chromiumapp.org/"
    ```
-4. Copy the result — it looks like:
-   ```
-   https://mgffbdlbkhpbeijgjfgmekanmlaldmah.chromiumapp.org/
-   ```
+4. Copy the full URL exactly
 
-**Add it to the SPA platform:**
+**Register it:**
 
-1. Azure portal → App registration → **Authentication** → under **Single-page application**, click **Add URI**
-2. Paste the exact URL
-3. Click **Save**
+1. Azure portal → **page-agent-edge-ext** → **Authentication**
+2. Under **Single-page application**, click **Add URI**
+3. Paste the URL exactly (including trailing slash)
+4. Click **Save**
 
-> The dev build (`.output/edge-mv3-dev/`) and production build (`.output/edge-mv3/`) have
-> different extension IDs. Add both redirect URIs if you use both.
+> Add both URIs if you use both dev and production builds — they have different extension IDs:
+> - Dev: `.output/edge-mv3-dev/` → one redirect URI
+> - Production: `.output/edge-mv3/` → different redirect URI
 
-#### Step 4 — Grant API permissions
+---
+
+#### Step 4 — Grant API permissions for Azure Cognitive Services
 
 1. App registration → **API permissions** → **Add a permission**
-2. Select **Azure Cognitive Services**
-3. Choose **Delegated permissions** → check `user_impersonation`
+2. Select **Azure Cognitive Services** (resource app ID `7d312290-28c8-473c-a0ed-8e53749b6d6d`)
+3. Choose **Delegated permissions** → check **`user_impersonation`**
 4. Click **Add permissions**
-5. Click **Grant admin consent** (requires Global Admin or Application Admin role)
+5. Click **Grant admin consent for [your org]** — requires Global Admin or Application Admin role
+6. Confirm the status column shows a green **Granted** checkmark
+
+> Without admin consent, users see a consent prompt on first sign-in. With it, sign-in is silent.
+
+---
+
+#### Step 5 — Assign the user or group to the app (if required)
+
+If your tenant has **"User assignment required"** enabled on the enterprise application:
+
+1. Azure portal → **Azure Active Directory** → **Enterprise applications**
+2. Find **page-agent-edge-ext**
+3. Go to **Users and groups** → **Add user/group**
+4. Add the users or groups who should be able to sign in
+5. Click **Assign**
+
+> Skip this step if user assignment is not required in your tenant (most dev tenants).
+
+---
+
+#### Step 6 — Verify the RBAC role on the Azure OpenAI resource
+
+The signed-in user must have the **Cognitive Services OpenAI User** (or higher) role on the Azure OpenAI resource:
+
+1. Azure portal → **datacopilothub8882317788** (Cognitive Services) → **Access control (IAM)**
+2. Click **Check access** → search for the user account that will sign in
+3. Confirm they have at least **Cognitive Services OpenAI User** role
+4. If missing: **Add role assignment** → **Cognitive Services OpenAI User** → select the user → **Save**
 
 ---
 
