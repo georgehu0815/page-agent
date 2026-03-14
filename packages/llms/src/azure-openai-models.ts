@@ -6,7 +6,16 @@ export const AZURE_OPENAI_ENDPOINT = 'https://datacopilothub8882317788.cognitive
 export const AZURE_OPENAI_DEPLOYMENT = 'gpt-5.2-chat'
 export const AZURE_OPENAI_API_VERSION = '2024-08-01-preview' // Changed from 2025-01-01-preview due to empty tool arguments bug
 export const AZURE_OPENAI_SCOPE = 'https://cognitiveservices.azure.com/.default'
+/** Used by AzureOpenAIClient (Node.js / server-side) for Managed Identity auth */
 export const AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID = 'c9427d44-98e2-406a-9527-f7fa7059f984'
+
+/**
+ * Used by the browser extension for interactive OAuth2 (PKCE) sign-in.
+ * Must be an Azure AD App Registration (SPA platform) — NOT a managed identity.
+ * Create one in portal.azure.com → Azure AD → App registrations → New registration.
+ * Then paste its Application (client) ID here.
+ */
+export const AZURE_OPENAI_BROWSER_CLIENT_ID = ''
 
 // const endpoint = process.env["AZURE_OPENAI_ENDPOINT"] || "https://datacopilothub8882317788.openai.azure.com/";
 // const apiVersion = "2025-01-01-preview";

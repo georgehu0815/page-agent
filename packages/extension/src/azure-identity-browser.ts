@@ -4,13 +4,26 @@
  * Uses OAuth2 Authorization Code + PKCE flow — no implicit grant needed.
  * Works with default Azure AD app registration settings.
  *
- * Azure AD app requirements:
- *  - Platform: "Single-page application" (SPA) — NOT Web, NOT Mobile
- *  - Redirect URI: https://<extension-id>.chromiumapp.org/
- *    Get the exact value by running chrome.identity.getRedirectURL() in extension DevTools.
+ * ─── Setup required ───────────────────────────────────────────────────────────
+ * 1. Create an Azure AD App Registration (NOT a managed identity):
+ *      portal.azure.com → Azure AD → App registrations → New registration
+ *      Name: page-agent-edge-ext   |   Account type: Single tenant
+ * 2. Authentication tab → Add platform → Single-page application (SPA)
+ *    Add redirect URI: run chrome.identity.getRedirectURL() in extension DevTools
+ * 3. API permissions → Add → Azure Cognitive Services → user_impersonation → Grant admin consent
+ * 4. Copy the Application (client) ID and paste it into BROWSER_CLIENT_ID below.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 const TOKEN_SAFETY_BUFFER_MS = 5 * 60 * 1000
+
+/**
+ * Azure AD App Registration client ID for browser OAuth2 (PKCE).
+ * This is NOT the same as AZURE_OPENAI_MANAGED_IDENTITY_CLIENT_ID —
+ * managed identities cannot be used for interactive browser auth.
+ * Fill in after creating the app registration (see setup above).
+ */
+const BROWSER_CLIENT_ID = ''
 
 // Use 'common' for multi-tenant; replace with your AAD tenant ID or domain if needed.
 // e.g. 'contoso.onmicrosoft.com' or a tenant GUID
@@ -37,15 +50,22 @@ async function generatePKCE(): Promise<{ verifier: string; challenge: string }> 
 // ─── Token acquisition ────────────────────────────────────────────────────────
 
 async function acquireToken(
-	clientId: string,
+	_ignoredClientId: string,
 	scope: string
 ): Promise<{ token: string; expiresOnTimestamp: number }> {
+	if (!BROWSER_CLIENT_ID) {
+		throw new Error(
+			'BROWSER_CLIENT_ID is not set in azure-identity-browser.ts. ' +
+				'Create an Azure AD App Registration (SPA platform) and paste its client ID there.'
+		)
+	}
+
 	const redirectUrl = chrome.identity.getRedirectURL()
 	const { verifier, challenge } = await generatePKCE()
 
 	// Step 1 — authorization code via interactive browser popup
 	const authUrl = new URL(`https://login.microsoftonline.com/${AAD_TENANT}/oauth2/v2.0/authorize`)
-	authUrl.searchParams.set('client_id', clientId)
+	authUrl.searchParams.set('client_id', BROWSER_CLIENT_ID)
 	authUrl.searchParams.set('response_type', 'code')
 	authUrl.searchParams.set('redirect_uri', redirectUrl)
 	authUrl.searchParams.set('scope', `${scope} offline_access`)
@@ -60,7 +80,7 @@ async function acquireToken(
 					new Error(
 						chrome.runtime.lastError?.message ??
 							`Azure AD login failed.\n` +
-								`Ensure the app (client_id=${clientId}) has:\n` +
+								`Ensure the app (client_id=${BROWSER_CLIENT_ID}) has:\n` +
 								`  - Platform type "Single-page application" (SPA)\n` +
 								`  - Redirect URI "${redirectUrl}" added`
 					)
@@ -82,7 +102,7 @@ async function acquireToken(
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			body: new URLSearchParams({
 				grant_type: 'authorization_code',
-				client_id: clientId,
+				client_id: BROWSER_CLIENT_ID,
 				code,
 				redirect_uri: redirectUrl,
 				code_verifier: verifier,
