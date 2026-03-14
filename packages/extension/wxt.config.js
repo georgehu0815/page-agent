@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import { mkdirSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { defineConfig } from 'wxt'
 
 const chromeProfile = '.wxt/chrome-data'
@@ -22,6 +23,13 @@ export default defineConfig({
 		plugins: [tailwindcss()],
 		define: {
 			__VERSION__: JSON.stringify(pkg.version),
+		},
+		resolve: {
+			alias: {
+				// Replace Node.js-only @azure/identity with a browser stub that uses
+				// chrome.identity.launchWebAuthFlow for OAuth2 token acquisition.
+				'@azure/identity': resolve('./src/azure-identity-browser.ts'),
+			},
 		},
 		optimizeDeps: {
 			force: true,
@@ -46,7 +54,7 @@ export default defineConfig({
 		name: '__MSG_extName__',
 		description: '__MSG_extDescription__',
 		homepage_url: 'https://alibaba.github.io/page-agent/',
-		permissions: ['tabs', 'tabGroups', 'sidePanel', 'storage'],
+		permissions: ['tabs', 'tabGroups', 'sidePanel', 'storage', 'identity'],
 		host_permissions: ['<all_urls>'],
 		icons: {
 			64: 'assets/page-agent-64.png',

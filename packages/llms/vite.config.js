@@ -25,7 +25,7 @@ export default defineConfig({
 		},
 		outDir: resolve(__dirname, 'dist', 'lib'),
 		rollupOptions: {
-			external: ['chalk', 'zod', 'zod/v4'],
+			external: ['chalk', 'zod', 'zod/v4', '@azure/identity'],
 		},
 		minify: false,
 		sourcemap: true,
