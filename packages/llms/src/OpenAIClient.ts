@@ -78,9 +78,16 @@ export class OpenAIClient implements LLMClient {
 			response = await this.fetchCompletion(requestBody, abortSignal)
 		} catch (error: unknown) {
 			const isAbortError = (error as any)?.name === 'AbortError'
-			const errorMessage = isAbortError ? 'Network request aborted' : 'Network request failed'
-			if (!isAbortError) console.error(error)
-			throw new InvokeError(InvokeErrorType.NETWORK_ERROR, errorMessage, error)
+			if (isAbortError) {
+				throw new InvokeError(InvokeErrorType.NETWORK_ERROR, 'Network request aborted', error)
+			}
+			const cause = (error as any)?.message ?? String(error)
+			console.error('[LLM] fetchCompletion failed:', error)
+			throw new InvokeError(
+				InvokeErrorType.NETWORK_ERROR,
+				`Network request failed: ${cause}`,
+				error
+			)
 		}
 
 		// 3. Handle HTTP errors

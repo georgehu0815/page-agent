@@ -1640,7 +1640,7 @@ export default (
 						}
 					}
 				} catch (e) {
-					console.warn('Unable to access iframe:', e)
+					// Cross-origin iframes are inaccessible by design — skip silently
 				}
 			}
 			// Handle rich text editors and contenteditable elements

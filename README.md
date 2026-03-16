@@ -128,3 +128,15 @@ file and in the node_modules directory after installation.
    <img alt="Star History Chart" src="https://api.star-history.com/image?repos=alibaba/page-agent&type=date&legend=top-left&v=6" />
  </picture>
 </a>
+
+
+The extension is entirely client-side. Here's why each concern is covered without a backend:
+
+Concern	How it's handled	Where
+LLM inference	Direct fetch to Azure OpenAI endpoint	Sidepanel → AzureOpenAIClient
+Authentication	OAuth2 PKCE via chrome.identity.launchWebAuthFlow	Browser → Azure AD directly
+DOM observation	Content script reads the live page DOM	PageController in-page
+DOM actions	Content script executes clicks/typing directly	main-world.ts
+Tab management	chrome.tabs API	TabsController in background SW
+State / history	chrome.storage (local)	Extension storage
+Cross-component messaging	chrome.runtime.sendMessage	Background SW routing

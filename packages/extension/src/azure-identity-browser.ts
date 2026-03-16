@@ -27,7 +27,7 @@ const BROWSER_CLIENT_ID = '5e10fe82-09d3-4404-88e5-2f8e98ff7b67' // page-agent-e
 
 // Use 'common' for multi-tenant; replace with your AAD tenant ID or domain if needed.
 // e.g. 'contoso.onmicrosoft.com' or a tenant GUID
-const AAD_TENANT = 'common'
+const AAD_TENANT = '72f988bf-86f1-41af-91ab-2d7cd011db47'
 
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────
 
@@ -39,9 +39,7 @@ function base64urlEncode(buffer: ArrayBuffer): string {
 }
 
 async function generatePKCE(): Promise<{ verifier: string; challenge: string }> {
-	const bytes = new Uint8Array(32)
-	crypto.getRandomValues(bytes)
-	const verifier = base64urlEncode(bytes.buffer)
+	const verifier = crypto.randomUUID() + crypto.randomUUID()
 	const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
 	const challenge = base64urlEncode(hash)
 	return { verifier, challenge }
@@ -68,10 +66,9 @@ async function acquireToken(
 	authUrl.searchParams.set('client_id', BROWSER_CLIENT_ID)
 	authUrl.searchParams.set('response_type', 'code')
 	authUrl.searchParams.set('redirect_uri', redirectUrl)
-	authUrl.searchParams.set('scope', `${scope} offline_access`)
+	authUrl.searchParams.set('scope', scope)
 	authUrl.searchParams.set('code_challenge', challenge)
 	authUrl.searchParams.set('code_challenge_method', 'S256')
-	authUrl.searchParams.set('response_mode', 'query')
 
 	const responseUrl = await new Promise<string>((resolve, reject) => {
 		chrome.identity.launchWebAuthFlow({ url: authUrl.toString(), interactive: true }, (url) => {
@@ -91,7 +88,13 @@ async function acquireToken(
 		})
 	})
 
-	const code = new URL(responseUrl).searchParams.get('code')
+	const redirectParams = new URL(responseUrl).searchParams
+	const azureError = redirectParams.get('error')
+	if (azureError) {
+		const description = redirectParams.get('error_description') ?? ''
+		throw new Error(`Azure AD authorization error: ${azureError} — ${description}`)
+	}
+	const code = redirectParams.get('code')
 	if (!code) throw new Error('No authorization code in Azure AD redirect response')
 
 	// Step 2 — exchange code for access token (no client secret needed with PKCE)
@@ -106,7 +109,7 @@ async function acquireToken(
 				code,
 				redirect_uri: redirectUrl,
 				code_verifier: verifier,
-				scope: `${scope} offline_access`,
+				scope,
 			}).toString(),
 		}
 	)

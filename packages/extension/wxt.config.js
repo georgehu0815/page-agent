@@ -53,7 +53,9 @@ export default defineConfig({
 		default_locale: 'en',
 		name: '__MSG_extName__',
 		description: '__MSG_extDescription__',
-		homepage_url: 'https://alibaba.github.io/page-agent/',
+		repository: 'https://github.com/georgehu0815/page-agent.git',
+		homepage_url: 'https://georgehu0815.github.io/page-agent/',
+
 		permissions: ['tabs', 'tabGroups', 'sidePanel', 'storage', 'identity'],
 		host_permissions: ['<all_urls>'],
 		icons: {
